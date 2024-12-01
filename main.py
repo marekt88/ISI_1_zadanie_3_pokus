@@ -13,15 +13,18 @@ from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectFromModel
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, train_test_split
 
 # Load training data with allow_pickle=True
 X_public = np.load("X_public.npy", allow_pickle=True)
 y_public = np.load("y_public.npy", allow_pickle=True)
 
-# Check dimensions
-print("Shape of X_public:", X_public.shape)
-print("Shape of y_public:", y_public.shape)
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X_public, y_public, test_size=0.2, random_state=42)
+
+print("Data shapes:")
+print("Training data shape:", X_train.shape)
+print("Testing data shape:", X_test.shape)
 
 # Identify categorical columns (assuming first 10 columns are categorical based on the output)
 categorical_features = list(range(10))
@@ -53,9 +56,9 @@ param_grid = {
 }
 
 # Perform grid search with cross-validation
-print("Starting grid search...")
-grid_search = GridSearchCV(pipeline, param_grid, cv=5, scoring='r2', n_jobs=-1, verbose=2)
-grid_search.fit(X_public, y_public)
+print("\nStarting grid search...")
+grid_search = GridSearchCV(pipeline, param_grid, cv=5, scoring='r2', n_jobs=-1, verbose=0)
+grid_search.fit(X_train, y_train)
 
 print("\nBest parameters:", grid_search.best_params_)
 print("Best cross-validation R² score:", grid_search.best_score_)
@@ -64,12 +67,22 @@ print("Best cross-validation R² score:", grid_search.best_score_)
 best_model = grid_search.best_estimator_
 
 # Evaluate the model using R² score on training data
-y_train_pred = best_model.predict(X_public)
-r2 = r2_score(y_public, y_train_pred)
-print("R² score on training data:", r2)
+y_train_pred = best_model.predict(X_train)
+train_r2 = r2_score(y_train, y_train_pred)
+print("\nR² score on training data:", train_r2)
+
+# Evaluate the model using R² score on test data
+y_test_pred = best_model.predict(X_test)
+test_r2 = r2_score(y_test, y_test_pred)
+print("R² score on test data:", test_r2)
+
+# Calculate overall R² score on all public data
+y_public_pred = best_model.predict(X_public)
+overall_r2 = r2_score(y_public, y_public_pred)
+print("Overall R² score on all data:", overall_r2)
 
 # Load evaluation data and make predictions
 X_eval = np.load("X_eval.npy", allow_pickle=True)
 y_predikcia = best_model.predict(X_eval)
 np.save("y_predikcia.npy", y_predikcia)
-print("Predictions saved to y_predikcia.npy.")
+print("\nPredictions saved to y_predikcia.npy.")
