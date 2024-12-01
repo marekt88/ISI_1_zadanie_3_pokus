@@ -8,19 +8,18 @@
 import numpy as np
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, RobustScaler
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.feature_selection import SelectFromModel
 from sklearn.model_selection import GridSearchCV, train_test_split
 
 # Load training data with allow_pickle=True
 X_public = np.load("X_public.npy", allow_pickle=True)
 y_public = np.load("y_public.npy", allow_pickle=True)
 
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X_public, y_public, test_size=0.2, random_state=42)
+# Split the data into training and testing sets (smaller test set)
+X_train, X_test, y_train, y_test = train_test_split(X_public, y_public, test_size=0.1, random_state=42)
 
 print("Data shapes:")
 print("Training data shape:", X_train.shape)
@@ -33,26 +32,27 @@ numeric_features = list(range(10, X_public.shape[1]))
 # Create a column transformer with one-hot encoding for categorical features and preprocessing for numeric features
 preprocessor = ColumnTransformer(
     transformers=[
-        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_features),
+        ('cat', Pipeline([
+            ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False)),
+            ('scaler', StandardScaler(with_mean=False))  # Scale categorical features after one-hot encoding
+        ]), categorical_features),
         ('num', Pipeline([
             ('imputer', SimpleImputer(strategy='median')),
-            ('scaler', StandardScaler())
+            ('scaler', RobustScaler())  # More robust to outliers
         ]), numeric_features)
     ],
     remainder='passthrough'
 )
 
-# Create a pipeline with the preprocessor, feature selection, and Ridge model
+# Create a pipeline with the preprocessor and Ridge model
 pipeline = Pipeline(steps=[
     ('preprocessor', preprocessor),
-    ('feature_selection', SelectFromModel(Ridge(alpha=1.0), threshold='median')),
     ('ridge', Ridge())
 ])
 
 # Define parameter grid for GridSearchCV
 param_grid = {
-    'ridge__alpha': np.logspace(-2, 4, 20),
-    'feature_selection__estimator__alpha': [0.1, 1.0, 10.0]
+    'ridge__alpha': np.logspace(-3, 3, 20)  # Wider range of alpha values
 }
 
 # Perform grid search with cross-validation
